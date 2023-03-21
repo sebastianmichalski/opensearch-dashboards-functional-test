@@ -6,22 +6,32 @@
 describe('Log in via OIDC', () => {
   const login = 'admin';
   const password = 'admin';
-  const pageTitleXPath = '//*[@id="osdOverviewPageHeader__title"]';
+  const userIconBtnXPath = '//button[@id="user-icon-btn"]';
 
-  afterEach(async () => {
-    cy.get('#actionsMenu').click();
-    cy.get('span').contains('Log out').click();
-    cy.get('#kc-page-title').should('be.visible');
-  });
-
-  it('Login to app/opensearch_dashboards_overview#/ when OIDC is enabled', () => {
-    cy.visit('http://localhost:5601/app/opensearch_dashboards_overview#/');
+  const kcLogin = () => {
     cy.get('#kc-page-title').should('be.visible');
     cy.get('#username').type(login);
     cy.get('#password').type(password);
     cy.get('#kc-login').click();
+  };
 
-    cy.xpath(pageTitleXPath).should('be.visible');
+  const logout = () => {
+    cy.xpath(userIconBtnXPath).should('be.visible', { timeout: 15000 });
+    cy.xpath(userIconBtnXPath).click();
+    cy.xpath('//*[@data-test-subj="log-out-/d"]').click();
+    cy.get('#kc-page-title').should('be.visible');
+  };
+
+  afterEach(async () => {
+    logout();
+  });
+
+  it('Login to app/opensearch_dashboards_overview#/ when OIDC is enabled', () => {
+    cy.visit('http://localhost:5601/app/opensearch_dashboards_overview#/');
+
+    kcLogin();
+
+    cy.xpath('//*[@id="osdOverviewPageHeader__title"]').should('be.visible');
 
     cy.getCookie('security_authentication').should('exist');
     cy.clearCookies();
@@ -31,10 +41,8 @@ describe('Log in via OIDC', () => {
     const requestButtonXPath = '//*[@data-test-subj="sendRequestButton"]';
 
     cy.visit('http://localhost:5601/app/dev_tools#/console');
-    cy.get('#kc-page-title').should('be.visible');
-    cy.get('#username').type(login);
-    cy.get('#password').type(password);
-    cy.get('#kc-login').click();
+
+    kcLogin();
 
     cy.xpath(requestButtonXPath).should('be.visible');
 
@@ -48,10 +56,8 @@ describe('Log in via OIDC', () => {
     cy.visit(
       `http://localhost:5601/app/dashboards#/view/7adfa750-4c81-11e8-b3d7-01146121b73d?_g=(filters:!(),refreshInterval:(pause:!f,value:900000),time:(from:now-24h,to:now))&_a=(description:'Analyze%20mock%20flight%20data%20for%20OpenSearch-Air,%20Logstash%20Airways,%20OpenSearch%20Dashboards%20Airlines%20and%20BeatsWest',filters:!(),fullScreenMode:!f,options:(hidePanelTitles:!f,useMargins:!t),query:(language:kuery,query:''),timeRestore:!t,title:'%5BFlights%5D%20Global%20Flight%20Dashboard',viewMode:view)`
     );
-    cy.get('#kc-page-title').should('be.visible');
-    cy.get('#username').type(login);
-    cy.get('#password').type(password);
-    cy.get('#kc-login').click();
+
+    kcLogin();
 
     cy.xpath(headerXPath).should('be.visible');
 
@@ -59,13 +65,30 @@ describe('Log in via OIDC', () => {
     cy.clearCookies();
   });
 
-  it('Tenancy persisted after Logout in SAML', () => {
+  it('Tenancy persisted after logout in OIDC', () => {
     cy.visit('http://localhost:5601/app/opensearch_dashboards_overview#/');
-    cy.get('#kc-page-title').should('be.visible');
-    cy.get('#username').type(login);
-    cy.get('#password').type(password);
-    cy.get('#kc-login').click();
 
-    // work in progress
+    kcLogin();
+
+    cy.xpath('//*[@id="global"]').should('be.enabled');
+
+    cy.xpath('//*[@id="global"]').click({ force: true });
+    cy.xpath('//button[@data-test-subj="confirm"]').click();
+
+    cy.xpath('//*[@id="osdOverviewPageHeader__title"]').should('be.visible');
+
+    cy.xpath(userIconBtnXPath).should('be.visible', { timeout: 15000 });
+    cy.xpath(userIconBtnXPath).click();
+    cy.xpath('//*[@data-test-subj="log-out-2"]').click(); // TO DO: find out why the test ID changes and form a dynamic XPath for this case
+    cy.get('#kc-page-title').should('be.visible');
+
+    kcLogin();
+
+    cy.xpath('//button[@data-test-subj="skipWelcomeScreen"]').click();
+
+    cy.xpath(userIconBtnXPath).should('be.visible');
+    cy.xpath(userIconBtnXPath).click();
+
+    cy.get('#tenantName').should('have.text', 'Global');
   });
 });
