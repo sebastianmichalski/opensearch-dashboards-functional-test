@@ -48,9 +48,19 @@ jobs:
           echo "Unpacking OpenSearch"
           tar -xzf opensearch-${{ env.VERSION }}-linux-x64.tar.gz
           cd opensearch-${{ env.VERSION }}
-          echo "Injecting OICD configuration"
+          echo "Injecting OIDC configuration"
           cd config/opensearch-security/
-          sed -i 's/authc:/authc:\n      openid_auth_domain:\n        http_enabled: true\n        transport_enabled: true\n        order: 0\n        http_authenticator:\n          type: openid\n          challenge: false\n          config:\n            subject_key: preferred_username\n            roles_key: roles\n            openid_connect_url: http:\/\/localhost:8080\/auth\/realms\/master\/.well-known\/openid-configuration\n        authentication_backend:\n          type: noop/g' config.yml
+          wget -O yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          chmod +x yq
+          yq -i ".config.dynamic.authc.openid_auth_domain.http_enabled = true" config.yml
+          yq -i ".config.dynamic.authc.openid_auth_domain.transport_enabled = true" config.yml
+          yq -i ".config.dynamic.authc.openid_auth_domain.order = 1" config.yml
+          yq -i ".config.dynamic.authc.openid_auth_domain.http_authenticator.type = \"openid\"" config.yml
+          yq -i ".config.dynamic.authc.openid_auth_domain.http_authenticator.challenge = false" config.yml
+          yq -i ".config.dynamic.authc.openid_auth_domain.http_authenticator.config.subject_key = \"preferred_username\"" config.yml
+          yq -i ".config.dynamic.authc.openid_auth_domain.http_authenticator.config.roles_key = \"roles\"" config.yml
+          yq -i ".config.dynamic.authc.openid_auth_domain.http_authenticator.config.openid_connect_url = \"http://localhost:8080/auth/realms/master/.well-known/openid-configuration\"" config.yml
+          yq -i ".config.dynamic.authc.openid_auth_domain.authentication_backend.type = \"noop\"" config.yml
           echo "Installing demo configuration"
           cd ../../plugins/opensearch-security/tools
           chmod +x install_demo_configuration.sh
@@ -71,7 +81,7 @@ jobs:
           wget https://artifacts.opensearch.org/releases/bundle/opensearch-dashboards/${{ env.VERSION }}/opensearch-dashboards-${{ env.VERSION }}-linux-x64.tar.gz
           echo "Unpacking OpenSearch-Dashboards"
           tar -xzf opensearch-dashboards-${{ env.VERSION }}-linux-x64.tar.gz
-          echo "Injecting OICD configuration"
+          echo "Injecting OIDC configuration"
           cd opensearch-dashboards-${{ env.VERSION }}/config
           echo "opensearch_security.openid.connect_url: \"http://localhost:8080/auth/realms/master/.well-known/openid-configuration\"" >> opensearch_dashboards.yml
           echo "opensearch_security.openid.client_id: \"opensearch\"" >> opensearch_dashboards.yml
@@ -79,6 +89,7 @@ jobs:
           echo "opensearch_security.auth.type: [\"openid\"]" >> opensearch_dashboards.yml
           echo "opensearch_security.auth.multiple_auth_enabled: true" >> opensearch_dashboards.yml
           echo "opensearch_security.ui.openid.login.buttonname: \"OIDC\"" >> opensearch_dashboards.yml
+          echo "home.disableWelcomeScreen: true" >> opensearch_dashboards.yml
           echo "Starting OpenSearch-Dashboards"
           cd ../bin
           chmod +x opensearch-dashboards
@@ -92,14 +103,6 @@ jobs:
         id: cypress_version
         run: |
           echo "::set-output name=cypress_version::$(cat ./functional-test/package.json | jq '.devDependencies.cypress' | tr -d '"')"
-      - name: Cache Cypress
-        id: cache-cypress
-        uses: actions/cache@v1
-        with:
-          path: ~/.cache/Cypress
-          key: cypress-cache-v2-${{ runner.os }}-${{ hashFiles('**/package.json') }}
-        env:
-          CYPRESS_INSTALL_BINARY: ${{ steps.cypress_version.outputs.cypress_version }}
       - run: npx cypress cache list
       - run: npx cypress cache path
       - name: Yarn install
@@ -111,7 +114,7 @@ jobs:
         uses: cypress-io/github-action@v2
         with:
           working-directory: functional-test
-          command: yarn cypress:run-without-security --browser chromium --spec 'cypress/integration/plugins/security-dashboards-plugin/*.js'
+          command: yarn cypress:run-with-security --browser chromium --spec 'cypress/integration/plugins/security-dashboards-plugin/*.js'
           wait-on: 'http://localhost:5601'
       - name: Upload E2E test reports
         if: always()
