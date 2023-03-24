@@ -114,7 +114,7 @@ jobs:
         uses: cypress-io/github-action@v2
         with:
           working-directory: functional-test
-          command: yarn cypress:run-with-security --browser chromium --spec 'cypress/integration/plugins/security-dashboards-plugin/*.js'
+          command: yarn cypress run --headless --browser chromium --spec 'cypress/integration/plugins/security-dashboards-plugin/*.js'
           wait-on: 'http://localhost:5601'
       - name: Upload E2E test reports
         if: always()
